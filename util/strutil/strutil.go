@@ -48,6 +48,54 @@ func Len(s string) (count int) {
 	return
 }
 
+// Truncate truncates the string s to the given length (ignoring ANSI sequences) and returns the
+// new string. It also returns a boolean based on whether it actually needed to truncate or not
+func Truncate(s string, l int) (string, bool) {
+	if Len(s) <= l {
+		return s, false
+	}
+	state := notInEscape
+	count := 0
+	buf := bytes.Buffer{}
+	buf.Grow(len(s)) // The biggest it could possibly get is how big it is now (using builtin len)
+
+	for _, c := range s {
+		switch state {
+		case notInEscape:
+			if c == esc {
+				state = startingEscape
+			} else if count < l {
+				buf.WriteRune(c)
+				count++
+			}
+		case inEscape:
+			if c >= '@' && c <= '~' {
+				state = notInEscape
+			}
+			buf.WriteRune(c)
+		case startingEscape:
+			if c == lBracket {
+				state = inEscape
+				// We can't write out esc until we get here since we don't know if false positive
+				buf.WriteRune(esc)
+				buf.WriteRune(c)
+			} else {
+				state = notInEscape
+				// This was a false positive and wasn't counted earlier so we now write out these chars
+				if count < l {
+					buf.WriteRune(esc)
+					count++
+				}
+				if count < l {
+					buf.WriteRune(c)
+					count++
+				}
+			}
+		}
+	}
+	return buf.String(), true
+}
+
 // PadRight returns a new string of a specified length in which the end of the current string is padded with spaces or with a specified Unicode character.
 func PadRight(str string, length int, pad byte) string {
 	if Len(str) >= length {
@@ -82,15 +130,9 @@ func Resize(s string, length uint) string {
 	}
 	// Pads only when length of the string smaller than len needed
 	s = PadRight(s, n, ' ')
-	// FIXME: This won't work if there is an escape sequence at the end of the string
 	if Len(s) > n {
-		b := []byte(s)
-		var buf bytes.Buffer
-		for i := 0; i < n-3; i++ {
-			buf.WriteByte(b[i])
-		}
-		buf.WriteString("...")
-		s = buf.String()
+		s2, _ := Truncate(s, n-3)
+		s = s2 + "..."
 	}
 	return s
 }
