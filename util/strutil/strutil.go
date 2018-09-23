@@ -16,7 +16,6 @@ const (
 
 	esc      = '\x1b'
 	lBracket = '['
-	execEsc  = 'm'
 )
 
 // Len computes the length of a string, but unlike the builtin len, it ignores ANSI escape codes
@@ -32,7 +31,7 @@ func Len(s string) (count int) {
 				count++
 			}
 		case inEscape:
-			if c == execEsc {
+			if c >= '@' && c <= '~' {
 				state = notInEscape
 			}
 		case startingEscape:
